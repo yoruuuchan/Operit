@@ -22,10 +22,25 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withTimeoutOrNull
+import java.util.concurrent.ConcurrentHashMap
 import kotlin.coroutines.resume
 
 // Define DataStore
 private val Context.toolPermissionsDataStore: DataStore<Preferences> by preferencesDataStore(name = "tool_permissions")
+
+internal class OperationDescriptionRegistry {
+    // MCP startup registers plugins concurrently, while permission UI reads descriptions from
+    // other threads. A regular MutableMap can lose entries during concurrent table expansion.
+    private val descriptions = ConcurrentHashMap<String, (AITool) -> String>()
+
+    fun register(toolName: String, descriptionGenerator: (AITool) -> String) {
+        descriptions[toolName] = descriptionGenerator
+    }
+
+    fun getDescription(tool: AITool): String? {
+        return descriptions[tool.name]?.invoke(tool)
+    }
+}
 
 /**
  * Permission levels for tool operations
@@ -114,13 +129,13 @@ class ToolPermissionSystem private constructor(private val context: Context) {
     }
     
     // Registry of operation descriptions by tool name
-    private val operationDescriptionRegistry = mutableMapOf<String, (AITool) -> String>()
+    private val operationDescriptionRegistry = OperationDescriptionRegistry()
     
     /**
      * Register a description generator for a tool
      */
     fun registerOperationDescription(toolName: String, descriptionGenerator: (AITool) -> String) {
-        operationDescriptionRegistry[toolName] = descriptionGenerator
+        operationDescriptionRegistry.register(toolName, descriptionGenerator)
     }
     
     /**
@@ -182,7 +197,8 @@ class ToolPermissionSystem private constructor(private val context: Context) {
      * Get human-readable description of an operation
      */
     fun getOperationDescription(tool: AITool): String {
-        return operationDescriptionRegistry[tool.name]?.invoke(tool) ?: context.getString(R.string.tool_permission_operation, tool.name)
+        return operationDescriptionRegistry.getDescription(tool)
+            ?: context.getString(R.string.tool_permission_operation, tool.name)
     }
     
     /**
