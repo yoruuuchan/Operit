@@ -87,7 +87,7 @@ class ModelMediaCapabilityTest {
     }
 
     @Test
-    fun staleDeclaration_doesNotLeakCapability() {
+    fun singleModelWithStaleDeclaration_usesVisibleSwitch() {
         val config =
             ModelConfigData(
                 id = "stale",
@@ -97,7 +97,7 @@ class ModelMediaCapabilityTest {
                 directImageModels = "qwen3-vl-flash"
             )
 
-        assertFalse(config.supportsDirectImageProcessing(0))
+        assertTrue(config.supportsDirectImageProcessing(0))
     }
 
     @Test
@@ -140,6 +140,124 @@ class ModelMediaCapabilityTest {
     @Test
     fun normalizeCapableModels_keepsSubsetInModelListOrder() {
         assertEquals("a,c", normalizeCapableModels("a,b,c", "c,a"))
+    }
+
+    @Test
+    fun addingModel_preservesExplicitSubsetForAllMedia() {
+        val changed = mediaConfig("text,omni", "omni")
+            .withModelNameAndNormalizedMediaCapabilities("text,omni,new")
+
+        assertDeclarations(changed, "omni")
+        assertMediaSupport(changed, listOf(false, true, false))
+    }
+
+    @Test
+    fun addingModel_toPreviouslyAllSelected_doesNotGrantNewModelCapability() {
+        val changed = mediaConfig("first,second", "")
+            .withModelNameAndNormalizedMediaCapabilities("first,second,new")
+
+        assertDeclarations(changed, "first,second")
+        assertMediaSupport(changed, listOf(true, true, false))
+    }
+
+    @Test
+    fun deletingModels_keepsOnlySurvivingDeclarationsInNewOrder() {
+        val changed = mediaConfig("text,old,kept,last", "old,kept,last")
+            .withModelNameAndNormalizedMediaCapabilities("LAST,text,kept")
+
+        assertDeclarations(changed, "LAST,kept")
+        assertMediaSupport(changed, listOf(true, false, true))
+    }
+
+    @Test
+    fun deletingEveryCapableModel_disablesAllMediaWithoutGrantingOthers() {
+        val changed = mediaConfig("text,omni,other", "omni")
+            .withModelNameAndNormalizedMediaCapabilities("text,other")
+
+        assertDeclarations(changed, "")
+        assertFalse(changed.enableDirectImageProcessing)
+        assertFalse(changed.enableDirectAudioProcessing)
+        assertFalse(changed.enableDirectVideoProcessing)
+        assertMediaSupport(changed, listOf(false, false))
+    }
+
+    @Test
+    fun shrinkingToOneModel_clearsHiddenDeclarationsAndPreservesSwitches() {
+        for (newModel in listOf("text", "omni", "vision-new")) {
+            val changed = mediaConfig("text,omni", "omni")
+                .withModelNameAndNormalizedMediaCapabilities(newModel)
+
+            assertDeclarations(changed, "")
+            assertMediaSupport(changed, listOf(true))
+        }
+    }
+
+    @Test
+    fun existingStaleSingleModelConfig_normalizesOnLoadAndCanBeToggled() {
+        val stale = mediaConfig("vision-new", "vision-old")
+        assertMediaSupport(stale, listOf(true))
+        val normalized = stale.withNormalizedMediaCapabilities()
+        assertDeclarations(normalized, "")
+        assertMediaSupport(normalized, listOf(true))
+
+        val disabled = normalized.copy(
+            enableDirectImageProcessing = false,
+            enableDirectAudioProcessing = false,
+            enableDirectVideoProcessing = false
+        ).withNormalizedMediaCapabilities()
+        assertMediaSupport(disabled, listOf(false))
+        assertMediaSupport(disabled.copy(
+            enableDirectImageProcessing = true,
+            enableDirectAudioProcessing = true,
+            enableDirectVideoProcessing = true
+        ).withNormalizedMediaCapabilities(), listOf(true))
+    }
+
+    @Test
+    fun staleMultiModelDeclarations_areRemovedAndCannotReturnWhenReadded() {
+        val normalized = mediaConfig("text,other", "removed")
+            .withNormalizedMediaCapabilities()
+        assertDeclarations(normalized, "")
+        assertMediaSupport(normalized, listOf(false, false))
+        assertMediaSupport(normalized.withModelNameAndNormalizedMediaCapabilities(
+            "text,other,removed"
+        ), listOf(false, false, false))
+    }
+
+    @Test
+    fun normalization_keepsMediaDeclarationsIndependentAndIsIdempotent() {
+        val normalized = mediaConfig("text,image,audio,video", "image")
+            .copy(directAudioModels = "audio", directVideoModels = "video")
+            .withModelNameAndNormalizedMediaCapabilities("text,image,video")
+
+        assertEquals("image", normalized.directImageModels)
+        assertEquals("", normalized.directAudioModels)
+        assertEquals("video", normalized.directVideoModels)
+        assertTrue(normalized.supportsDirectImageProcessing(1))
+        assertFalse(normalized.enableDirectAudioProcessing)
+        assertTrue(normalized.supportsDirectVideoProcessing(2))
+        assertEquals(normalized, normalized.withNormalizedMediaCapabilities())
+    }
+
+    private fun mediaConfig(models: String, declaration: String) = ModelConfigData(
+        id = "media-regression", name = "Media regression", modelName = models,
+        enableDirectImageProcessing = true, enableDirectAudioProcessing = true,
+        enableDirectVideoProcessing = true, directImageModels = declaration,
+        directAudioModels = declaration, directVideoModels = declaration
+    )
+
+    private fun assertDeclarations(config: ModelConfigData, expected: String) {
+        assertEquals(expected, config.directImageModels)
+        assertEquals(expected, config.directAudioModels)
+        assertEquals(expected, config.directVideoModels)
+    }
+
+    private fun assertMediaSupport(config: ModelConfigData, expected: List<Boolean>) {
+        expected.forEachIndexed { index, supported ->
+            assertEquals("image at $index", supported, config.supportsDirectImageProcessing(index))
+            assertEquals("audio at $index", supported, config.supportsDirectAudioProcessing(index))
+            assertEquals("video at $index", supported, config.supportsDirectVideoProcessing(index))
+        }
     }
 
     private fun mixedVisionConfig(): ModelConfigData =

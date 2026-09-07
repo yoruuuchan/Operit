@@ -229,7 +229,8 @@ fun getValidModelIndex(modelName: String, requestedIndex: Int): Int {
  * 判断配置中某个具体模型是否具备某类媒体的直接处理能力。
  *
  * 配置级开关是总开关；[capableModels] 为空表示配置内所有模型共享该能力（单模型配置与旧配置即此情形），
- * 非空时只有其中列出的模型才具备该能力。
+ * 多模型配置中非空时只有其中列出的模型才具备该能力；单模型只使用可见的总开关，
+ * 避免旧声明在选择器隐藏后仍限制实际能力。
  */
 private fun modelHasDirectMediaSupport(
     enabledForConfig: Boolean,
@@ -238,6 +239,8 @@ private fun modelHasDirectMediaSupport(
     modelIndex: Int
 ): Boolean {
     if (!enabledForConfig) return false
+    val models = getModelList(modelName)
+    if (models.size == 1) return true
     val capable = getModelList(capableModels)
     if (capable.isEmpty()) return true
     val selectedModel = getModelByIndex(modelName, getValidModelIndex(modelName, modelIndex))
@@ -289,3 +292,90 @@ fun normalizeCapableModels(modelName: String, capableModels: String): String {
     val retained = retainCapableModels(modelName, capableModels)
     return if (retained.size == models.size) "" else retained.joinToString(",")
 }
+
+private data class NormalizedDirectMediaCapability(
+    val enabledForConfig: Boolean,
+    val capableModels: String
+)
+
+private fun normalizeDirectMediaCapabilityForModelChange(
+    previousModelName: String,
+    newModelName: String,
+    enabledForConfig: Boolean,
+    capableModels: String
+): NormalizedDirectMediaCapability {
+    val newModels = getModelList(newModelName)
+    if (newModels.size <= 1) {
+        return NormalizedDirectMediaCapability(enabledForConfig, "")
+    }
+
+    val previousModels = getModelList(previousModelName)
+    val declaredModels = getModelList(capableModels)
+    val previouslyCapableModels =
+        if (declaredModels.isEmpty()) {
+            previousModels
+        } else {
+            previousModels.filter { model ->
+                declaredModels.any { it.equals(model, ignoreCase = true) }
+            }
+        }
+    val retainedModels =
+        newModels.filter { model ->
+            previouslyCapableModels.any { it.equals(model, ignoreCase = true) }
+        }
+
+    if (retainedModels.isEmpty()) {
+        // 空串表示“全部模型”，因此多模型下空交集必须关闭总开关，不能把能力扩大给剩余模型。
+        return NormalizedDirectMediaCapability(false, "")
+    }
+
+    val normalizedModels =
+        if (retainedModels.size == newModels.size) "" else retainedModels.joinToString(",")
+    return NormalizedDirectMediaCapability(enabledForConfig, normalizedModels)
+}
+
+/**
+ * 模型列表变化时同步三种逐模型媒体能力声明。
+ *
+ * 新增模型不会自动继承旧列表的能力；删除模型只保留仍存在的声明。单模型没有逐模型选择器，
+ * 因此清除声明并继续由配置级开关表达其能力。
+ */
+fun ModelConfigData.withModelNameAndNormalizedMediaCapabilities(
+    newModelName: String
+): ModelConfigData {
+    val image =
+        normalizeDirectMediaCapabilityForModelChange(
+            previousModelName = modelName,
+            newModelName = newModelName,
+            enabledForConfig = enableDirectImageProcessing,
+            capableModels = directImageModels
+        )
+    val audio =
+        normalizeDirectMediaCapabilityForModelChange(
+            previousModelName = modelName,
+            newModelName = newModelName,
+            enabledForConfig = enableDirectAudioProcessing,
+            capableModels = directAudioModels
+        )
+    val video =
+        normalizeDirectMediaCapabilityForModelChange(
+            previousModelName = modelName,
+            newModelName = newModelName,
+            enabledForConfig = enableDirectVideoProcessing,
+            capableModels = directVideoModels
+        )
+
+    return copy(
+        modelName = newModelName,
+        enableDirectImageProcessing = image.enabledForConfig,
+        enableDirectAudioProcessing = audio.enabledForConfig,
+        enableDirectVideoProcessing = video.enabledForConfig,
+        directImageModels = image.capableModels,
+        directAudioModels = audio.capableModels,
+        directVideoModels = video.capableModels
+    )
+}
+
+/** 清理当前模型列表中已经失效的逐模型媒体能力声明。 */
+fun ModelConfigData.withNormalizedMediaCapabilities(): ModelConfigData =
+    withModelNameAndNormalizedMediaCapabilities(modelName)

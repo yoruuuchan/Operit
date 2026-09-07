@@ -20,6 +20,8 @@ import com.ai.assistance.operit.data.model.ParameterValueType
 import com.ai.assistance.operit.data.model.StandardModelParameters
 import com.ai.assistance.operit.data.model.ApiProviderType
 import com.ai.assistance.operit.data.model.ApiKeyInfo
+import com.ai.assistance.operit.data.model.withModelNameAndNormalizedMediaCapabilities
+import com.ai.assistance.operit.data.model.withNormalizedMediaCapabilities
 import java.util.Locale
 import java.util.UUID
 import kotlinx.coroutines.flow.Flow
@@ -400,7 +402,7 @@ class ModelConfigManager(
     suspend fun saveModelConfig(config: ModelConfigData) {
         val configKey = stringPreferencesKey("config_${config.id}")
         configDataStore.edit { preferences ->
-            preferences[configKey] = json.encodeToString(config)
+            preferences[configKey] = json.encodeToString(config.withNormalizedMediaCapabilities())
         }
     }
 
@@ -412,6 +414,7 @@ class ModelConfigManager(
             if (configJson != null) {
                 try {
                     json.decodeFromString<ModelConfigData>(configJson)
+                        .withNormalizedMediaCapabilities()
                 } catch (e: Exception) {
                     // 如果解析失败，回退到创建一个新配置
                     if (configId == DEFAULT_CONFIG_ID) {
@@ -467,7 +470,7 @@ class ModelConfigManager(
                         }
                     }
 
-            val newConfig = transform(current)
+            val newConfig = transform(current).withNormalizedMediaCapabilities()
             preferences[configKey] = json.encodeToString(newConfig)
             updated = newConfig
         }
@@ -574,7 +577,8 @@ class ModelConfigManager(
             modelName: String
     ): ModelConfigData {
         return updateConfigInternal(configId) {
-            it.copy(apiKey = apiKey, apiEndpoint = apiEndpoint, modelName = modelName)
+            it.withModelNameAndNormalizedMediaCapabilities(modelName)
+                .copy(apiKey = apiKey, apiEndpoint = apiEndpoint)
         }
     }
 
@@ -588,10 +592,9 @@ class ModelConfigManager(
             apiProviderTypeId: String = apiProviderType.name
     ): ModelConfigData {
         return updateConfigInternal(configId) {
-            it.copy(
+            it.withModelNameAndNormalizedMediaCapabilities(modelName).copy(
                     apiKey = apiKey,
                     apiEndpoint = apiEndpoint,
-                    modelName = modelName,
                     apiProviderType = apiProviderType,
                     apiProviderTypeId = apiProviderTypeId,
                     thinkingConfigurations = nextThinkingRulesForProvider(it, apiProviderTypeId),
@@ -612,10 +615,9 @@ class ModelConfigManager(
             mnnThreadCount: Int
     ): ModelConfigData {
         return updateConfigInternal(configId) {
-            it.copy(
+            it.withModelNameAndNormalizedMediaCapabilities(modelName).copy(
                     apiKey = apiKey,
                     apiEndpoint = apiEndpoint,
-                    modelName = modelName,
                     apiProviderType = apiProviderType,
                     apiProviderTypeId = apiProviderTypeId,
                     thinkingConfigurations = nextThinkingRulesForProvider(it, apiProviderTypeId),

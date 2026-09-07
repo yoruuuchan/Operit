@@ -62,6 +62,8 @@ import com.ai.assistance.operit.data.model.ModelOption
 import com.ai.assistance.operit.data.model.getModelList
 import com.ai.assistance.operit.data.model.normalizeCapableModels
 import com.ai.assistance.operit.data.model.retainCapableModels
+import com.ai.assistance.operit.data.model.withModelNameAndNormalizedMediaCapabilities
+import com.ai.assistance.operit.data.model.withNormalizedMediaCapabilities
 import com.ai.assistance.operit.data.preferences.CodexAuthState
 import com.ai.assistance.operit.data.preferences.ModelConfigManager
 import com.ai.assistance.operit.plugins.toolpkg.ToolPkgAiProviderRegistry
@@ -155,10 +157,12 @@ fun ModelApiSettingsSection(
         return ApiProviderConfigs.isDefaultModelName(modelName)
     }
 
+    val normalizedInitialConfig = remember(config.id) { config.withNormalizedMediaCapabilities() }
+
     // API编辑状态
     var apiEndpointInput by remember(config.id) { mutableStateOf(config.apiEndpoint) }
     var apiKeyInput by remember(config.id) { mutableStateOf(config.apiKey) }
-    var modelNameInput by remember(config.id) { mutableStateOf(config.modelName) }
+    var modelNameInput by remember(config.id) { mutableStateOf(normalizedInitialConfig.modelName) }
     var selectedProviderTypeId by remember(config.id) { mutableStateOf(config.apiProviderTypeId) }
     var hasInitializedProviderEndpointSync by remember(config.id) { mutableStateOf(false) }
     var previousProviderTypeId by remember(config.id) { mutableStateOf(config.apiProviderTypeId) }
@@ -203,16 +207,48 @@ fun ModelApiSettingsSection(
     var llamaGpuLayersInput by remember(config.id) { mutableStateOf(config.llamaGpuLayers.toString()) }
 
     // 图片处理配置状态
-    var enableDirectImageProcessingInput by remember(config.id) { mutableStateOf(config.enableDirectImageProcessing) }
+    var enableDirectImageProcessingInput by remember(config.id) {
+        mutableStateOf(normalizedInitialConfig.enableDirectImageProcessing)
+    }
 
-    var enableDirectAudioProcessingInput by remember(config.id) { mutableStateOf(config.enableDirectAudioProcessing) }
+    var enableDirectAudioProcessingInput by remember(config.id) {
+        mutableStateOf(normalizedInitialConfig.enableDirectAudioProcessing)
+    }
 
-    var enableDirectVideoProcessingInput by remember(config.id) { mutableStateOf(config.enableDirectVideoProcessing) }
+    var enableDirectVideoProcessingInput by remember(config.id) {
+        mutableStateOf(normalizedInitialConfig.enableDirectVideoProcessing)
+    }
 
     // 多模型配置下，逐模型声明哪些模型真正具备该媒体能力（空串表示配置内所有模型都具备）
-    var directImageModelsInput by remember(config.id) { mutableStateOf(config.directImageModels) }
-    var directAudioModelsInput by remember(config.id) { mutableStateOf(config.directAudioModels) }
-    var directVideoModelsInput by remember(config.id) { mutableStateOf(config.directVideoModels) }
+    var directImageModelsInput by remember(config.id) {
+        mutableStateOf(normalizedInitialConfig.directImageModels)
+    }
+    var directAudioModelsInput by remember(config.id) {
+        mutableStateOf(normalizedInitialConfig.directAudioModels)
+    }
+    var directVideoModelsInput by remember(config.id) {
+        mutableStateOf(normalizedInitialConfig.directVideoModels)
+    }
+
+    fun updateModelNameAndCapabilities(newModelName: String) {
+        val normalized =
+            config.copy(
+                modelName = modelNameInput,
+                enableDirectImageProcessing = enableDirectImageProcessingInput,
+                enableDirectAudioProcessing = enableDirectAudioProcessingInput,
+                enableDirectVideoProcessing = enableDirectVideoProcessingInput,
+                directImageModels = directImageModelsInput,
+                directAudioModels = directAudioModelsInput,
+                directVideoModels = directVideoModelsInput
+            ).withModelNameAndNormalizedMediaCapabilities(newModelName)
+        modelNameInput = normalized.modelName
+        enableDirectImageProcessingInput = normalized.enableDirectImageProcessing
+        enableDirectAudioProcessingInput = normalized.enableDirectAudioProcessing
+        enableDirectVideoProcessingInput = normalized.enableDirectVideoProcessing
+        directImageModelsInput = normalized.directImageModels
+        directAudioModelsInput = normalized.directAudioModels
+        directVideoModelsInput = normalized.directVideoModels
+    }
     
     // Google Search Grounding 配置状态 (仅Gemini)
     var enableGoogleSearchInput by remember(config.id) { mutableStateOf(config.enableGoogleSearch) }
@@ -385,10 +421,10 @@ fun ModelApiSettingsSection(
 
         if (isKimiCodeEndpoint) {
             if (modelNameInput.isEmpty() || modelNameInput == moonshotDefaultModel) {
-                modelNameInput = "kimi-for-coding"
+                updateModelNameAndCapabilities("kimi-for-coding")
             }
         } else if (modelNameInput == "kimi-for-coding") {
-            modelNameInput = moonshotDefaultModel
+            updateModelNameAndCapabilities(moonshotDefaultModel)
         }
     }
 
@@ -564,10 +600,10 @@ fun ModelApiSettingsSection(
                             // 对有默认模型名的供应商，视为“有强制内容”：切换时总是重置为该供应商默认模型名
                             val hasForcedModelName = getDefaultModelName(provider.id).isNotEmpty()
                             if (hasForcedModelName) {
-                                modelNameInput = getDefaultModelName(provider.id)
+                                updateModelNameAndCapabilities(getDefaultModelName(provider.id))
                             } else if (modelNameInput.isEmpty() || isDefaultModelName(modelNameInput)) {
                                 // 通用/无默认模型名的供应商仍沿用旧逻辑
-                                modelNameInput = getDefaultModelName(provider.id)
+                                updateModelNameAndCapabilities(getDefaultModelName(provider.id))
                             }
 
                             showApiProviderDialog = false
@@ -776,7 +812,9 @@ fun ModelApiSettingsSection(
                         value = modelNameInput,
                         onValueChange = {
                         if (canEditModelName) {
-                                modelNameInput = it.replace("\n", "").replace("\r", "")
+                                updateModelNameAndCapabilities(
+                                    it.replace("\n", "").replace("\r", "")
+                                )
                             }
                         },
                     enabled = !isMnnProvider && !isLlamaProvider && canEditModelName,
@@ -1250,7 +1288,7 @@ fun ModelApiSettingsSection(
                                     // 将选中的模型用逗号连接
                                     val orderedSelection = modelsList.map { it.id }
                                         .filter { selectedModels.value.contains(it) }
-                                    modelNameInput = orderedSelection.joinToString(",")
+                                    updateModelNameAndCapabilities(orderedSelection.joinToString(","))
                                     if (selectedApiProvider == ApiProviderType.MNN) {
                                         AppLogger.d(TAG, "选择MNN模型: $modelNameInput")
                                     }
