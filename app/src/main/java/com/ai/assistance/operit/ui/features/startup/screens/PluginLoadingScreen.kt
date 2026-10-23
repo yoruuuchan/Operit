@@ -928,6 +928,9 @@ class PluginLoadingState {
             ) {
                 // 根据初始化状态显示不同的消息
                 when (status) {
+                    MCPStarter.PluginInitStatus.TERMINAL_SERVICE_UNAVAILABLE -> {
+                        updateMessage(context.getString(R.string.plugin_terminal_service_unavailable))
+                    }
                     MCPStarter.PluginInitStatus.NODEJS_MISSING -> {
                         updateMessage(context.getString(R.string.plugin_nodejs_missing))
                     }
