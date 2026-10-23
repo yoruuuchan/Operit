@@ -49,6 +49,7 @@ import com.ai.assistance.operit.R
 import com.ai.assistance.operit.api.chat.llmprovider.EndpointCompleter
 import com.ai.assistance.operit.api.chat.EnhancedAIService
 import com.ai.assistance.operit.api.chat.llmprovider.AIServiceFactory
+import com.ai.assistance.operit.api.chat.llmprovider.AudioTranscriptionProtocol
 import com.ai.assistance.operit.api.chat.llmprovider.CodexModelListFetcher
 import com.ai.assistance.operit.api.chat.llmprovider.LlamaProvider
 import com.ai.assistance.operit.api.chat.llmprovider.ModelListFetcher
@@ -845,6 +846,9 @@ fun ModelApiSettingsSection(
                 selectedApiProvider?.let {
                     EndpointCompleter.completeEndpoint(apiEndpointInput, it)
                 } ?: apiEndpointInput
+            if (AudioTranscriptionProtocol.isTranscriptionEndpoint(completedEndpoint)) {
+                SettingsInfoBanner(text = stringResource(R.string.api_endpoint_is_transcription_warning))
+            }
             if (completedEndpoint != apiEndpointInput) {
                 Text(
                     text = stringResource(R.string.actual_request_url, completedEndpoint),
@@ -1016,6 +1020,12 @@ fun ModelApiSettingsSection(
                      checked = enableDirectAudioProcessingInput,
                      onCheckedChange = { enableDirectAudioProcessingInput = it }
                  )
+                 if (selectedApiProvider == ApiProviderType.SILICONFLOW &&
+                     enableDirectAudioProcessingInput) {
+                     SettingsInfoBanner(
+                         text = stringResource(R.string.siliconflow_asr_not_chat_model_warning)
+                     )
+                 }
                  SettingsSwitchRow(
                      title = stringResource(R.string.enable_direct_video_processing),
                      subtitle = stringResource(R.string.enable_direct_video_processing_desc),

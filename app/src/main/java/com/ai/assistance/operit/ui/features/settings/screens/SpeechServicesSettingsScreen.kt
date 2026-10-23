@@ -89,6 +89,7 @@ import com.ai.assistance.operit.api.voice.OpenAIVoiceProvider
 import com.ai.assistance.operit.api.voice.SimpleVoiceProvider
 import com.ai.assistance.operit.api.voice.VoiceListFetcher
 import com.ai.assistance.operit.api.voice.VoiceService
+import com.ai.assistance.operit.api.chat.llmprovider.AudioTranscriptionProtocol
 import com.ai.assistance.operit.api.chat.llmprovider.ModelListFetcher
 import androidx.compose.runtime.LaunchedEffect
 
@@ -2209,7 +2210,27 @@ fun SpeechServicesSettingsScreen(
                                     label = { Text(stringResource(R.string.speech_services_openai_stt_model)) },
                                     placeholder = { Text(stringResource(R.string.speech_services_openai_stt_model_placeholder)) },
                                     modifier = Modifier.fillMaxWidth(),
-                                    singleLine = true
+                                    singleLine = true,
+                                    supportingText = {
+                                        Text(
+                                            text =
+                                                if (
+                                                    AudioTranscriptionProtocol.isSiliconFlowEndpoint(
+                                                        sttEndpointUrlInput
+                                                    )
+                                                ) {
+                                                    stringResource(
+                                                        R.string.speech_services_openai_stt_siliconflow_models_hint
+                                                    )
+                                                } else {
+                                                    stringResource(
+                                                        R.string.speech_services_openai_stt_model_placeholder
+                                                    )
+                                                },
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
                                 )
                             }
                         }
