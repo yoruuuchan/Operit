@@ -2211,26 +2211,25 @@ fun SpeechServicesSettingsScreen(
                                     placeholder = { Text(stringResource(R.string.speech_services_openai_stt_model_placeholder)) },
                                     modifier = Modifier.fillMaxWidth(),
                                     singleLine = true,
-                                    supportingText = {
-                                        Text(
-                                            text =
-                                                if (
-                                                    AudioTranscriptionProtocol.isSiliconFlowEndpoint(
-                                                        sttEndpointUrlInput
-                                                    )
-                                                ) {
-                                                    stringResource(
-                                                        R.string.speech_services_openai_stt_siliconflow_models_hint
-                                                    )
-                                                } else {
-                                                    stringResource(
-                                                        R.string.speech_services_openai_stt_model_placeholder
-                                                    )
-                                                },
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    }
+                                    supportingText =
+                                        if (
+                                            AudioTranscriptionProtocol.isSiliconFlowEndpoint(
+                                                sttEndpointUrlInput
+                                            )
+                                        ) {
+                                            {
+                                                Text(
+                                                    text =
+                                                        stringResource(
+                                                            R.string.speech_services_openai_stt_siliconflow_models_hint
+                                                        ),
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                            }
+                                        } else {
+                                            null
+                                        }
                                 )
                             }
                         }
