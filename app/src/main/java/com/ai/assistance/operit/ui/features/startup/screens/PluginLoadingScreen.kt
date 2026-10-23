@@ -888,13 +888,26 @@ class PluginLoadingState {
                     pluginId: String,
                     success: Boolean,
                     index: Int,
-                    total: Int
+                    total: Int,
+                    failureDetail: String?
             ) {
                 // 记录插件加载结果
                 if (success) {
                     setPluginSuccess(pluginId)
                 } else {
-                    setPluginFailed(pluginId, context.getString(R.string.plugin_verification_failed))
+                    // Prefer the transport/registration reason (spawn stderr, handshake error,
+                    // missing cwd, ...) so the dialog explains what failed instead of the bare
+                    // "verification failed" label users cannot act on.
+                    val detail = failureDetail?.trim().orEmpty()
+                    setPluginFailed(
+                            pluginId,
+                            detail.ifBlank {
+                                context.getString(R.string.plugin_verification_failed)
+                            }
+                    )
+                    if (detail.isNotBlank()) {
+                        appendPluginLog(pluginId, detail)
+                    }
                     forceExpanded()
                 }
 
