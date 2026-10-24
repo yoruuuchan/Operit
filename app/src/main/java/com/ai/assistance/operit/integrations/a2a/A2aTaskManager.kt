@@ -157,9 +157,7 @@ class A2aTaskManager(
                             responseStream.collectRevisionAppliedText(),
                             returnToolStatus = false
                         )
-                    if (finalOutput != null) {
-                        record.replaceOutput(finalOutput)
-                    }
+                    record.replaceOutput(finalOutput.orEmpty())
 
                     when (val finalState = session.responseStreamSession.currentState()) {
                         is InputProcessingState.Error -> record.fail(finalState.message)
