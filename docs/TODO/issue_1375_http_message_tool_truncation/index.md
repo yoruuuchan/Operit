@@ -3,6 +3,7 @@ fork: https://github.com/yoruuuchan/Operit
 branch: fix/http-api-message-tool-truncation
 status: implementation-complete
 issue: https://github.com/AAswordman/Operit/issues/1375
+pr: https://github.com/AAswordman/Operit/pull/1414
 ---
 
 # HTTP 入口消息与工具调用截断修复
