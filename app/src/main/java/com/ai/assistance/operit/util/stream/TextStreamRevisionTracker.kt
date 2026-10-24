@@ -87,6 +87,7 @@ class TextStreamRevisionTracker(initialContent: String = "") {
      */
     fun applyEventHistory(events: List<TextStreamEvent>): SmartString {
         discardedRanges.clear()
+        savepoints.clear()
         events.forEach { event ->
             when (event.eventType) {
                 TextStreamEventType.SAVEPOINT -> savepoint(event.id, event.contentLength)
