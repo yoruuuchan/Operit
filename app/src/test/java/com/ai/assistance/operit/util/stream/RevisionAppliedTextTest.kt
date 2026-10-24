@@ -95,4 +95,53 @@ class RevisionAppliedTextTest {
         assertEquals("final", collected)
         assertEquals(listOf("<tool_L6Gi", "final"), forwarded)
     }
+
+    /**
+     * One response can contain several provider requests, and each provider numbers its revision
+     * events from the start of its own request. EnhancedAIService shifts them into the coordinate
+     * space of the whole response; a rollback of a later round must not touch earlier rounds.
+     */
+    @Test
+    fun rollbackOfALaterRoundKeepsEarlierRounds() {
+        val roundOne = "<tool_AB12 name=\"device_info\">\n</tool_AB12>"
+        val abortedRoundTwo = "PREFIX-LEAK-"
+        val roundTwo = "设备信息已读取完成。"
+        val rawContent = roundOne + abortedRoundTwo + roundTwo
+
+        val collected =
+            applyRevisionEvents(
+                rawContent,
+                listOf(
+                    TextStreamEvent(TextStreamEventType.SAVEPOINT, "round1", contentLength = 0),
+                    TextStreamEvent(
+                        TextStreamEventType.SAVEPOINT,
+                        "round2",
+                        contentLength = roundOne.length,
+                        0
+                    ),
+                    TextStreamEvent(
+                        TextStreamEventType.ROLLBACK,
+                        "round2",
+                        contentLength = roundOne.length,
+                        discardedLength = abortedRoundTwo.length
+                    )
+                )
+            )
+
+        assertEquals(roundOne + roundTwo, collected)
+    }
+
+    @Test
+    fun shiftedByMovesBothEventCoordinates() {
+        val event =
+            TextStreamEvent(
+                TextStreamEventType.ROLLBACK,
+                "attempt",
+                contentLength = 5,
+                discardedLength = 7
+            )
+
+        assertEquals(25, event.shiftedBy(20).contentLength)
+        assertEquals(7, event.shiftedBy(20).discardedLength)
+    }
 }
