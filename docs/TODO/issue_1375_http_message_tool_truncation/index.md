@@ -65,13 +65,17 @@ Issue #1375 报告了两个现象，且两者都只在特定条件下出现：
 
 ## 验证记录
 
-- `:app:compileDebugKotlin` 通过
-- `:app:testDebugUnitTest --tests "...util.stream.*"` 通过（`TextStreamRevisionTrackerTest` 覆盖 chunk 先到/事件先到两种时序，`RevisionAppliedTextTest` 覆盖收集与转发）
-- `:app:testDebugUnitTest --tests "...ToolTagStreamParsingTest"` 通过（覆盖每个二分切点、逐字符切分与多种固定块长）
-- `:app:testDebugUnitTest --tests "...ExternalChatRequestBodyReaderTest"` 通过（覆盖逐字节、多字节字符跨块、大于 NanoHTTPD 8192 缓冲区）
-- `:app:testDebugUnitTest --tests "...ExternalChatHttpIngressTest"` 通过（真实 NanoHTTPD + 真实 TCP socket，按 13 字节/1 字节分段写入并比对长度与 SHA-256）
-- `:app:testDebugUnitTest --tests "...ProviderRetryRollbackTest"` 通过（真实 `OpenAIProvider` + OkHttp 拦截器：第一次尝试输出 `<tool_L6Gi` 后断开，第二次返回完整工具调用，断言事件序列与最终文本）
+- `:app:testDebugUnitTest` 全量通过（1367 tests, 0 failures）
+  - `TextStreamRevisionTrackerTest` 覆盖 chunk 先到/事件先到两种时序
+  - `RevisionAppliedTextTest` 覆盖收集、转发、多轮请求的偏移平移
+  - `ToolTagStreamParsingTest` 覆盖每个二分切点、逐字符切分与多种固定块长
+  - `ExternalChatRequestBodyReaderTest` 覆盖逐字节、多字节字符跨块、大于 NanoHTTPD 8192 缓冲区
+  - `ExternalChatHttpIngressTest` 使用真实 NanoHTTPD + 真实 TCP socket，按 13 字节/1 字节分段写入并比对长度与 SHA-256
+  - `ProviderRetryRollbackTest` 使用真实 `OpenAIProvider` + OkHttp 拦截器：第一次尝试输出 `<tool_L6Gi` 后断开，第二次返回完整工具调用；另有连续两次尝试都被中止的用例
 - `:app:assembleDebug` 通过（`llm/mnn` 的 NDK flatc 宿主编译问题与本次改动无关，构建时排除 `:mnn` 的 external native 任务并使用共享树预编译产物）
 - 端到端：安装到 AVD（`operit35`，Android 16 x86_64），外部 HTTP 服务监听 8094，mock OpenAI SSE 服务经 `adb reverse` 接入
   - 入口侧：981 字符 / 2881 字节消息，`len/bytes/sha256` 在 `readRequestBody` → `startMessageToAIStream` → `buildUserMessageContent` → `getMemoryFromMessages` → `sendMessage requestHistory` 全链路一致（`head=HEAD-MARKER-012345678901`、`tail=TAIL-MARKER-987654321098`）
-  - 出口侧：第一次尝试输出 `<tool_L6Gi` 后断开，重试返回完整 `<tool_AB12 name="device_info">...</tool_AB12>`；`ai_response` 中不含被中止尝试的前缀，工具调用被解析并执行
+  - 出口侧：第一次尝试输出 `<tool_L6Gi` 后断开，重试返回完整 `<tool_AB12 name="device_info">...</tool_AB12>`；回滚日志 `targetLength=0 resultingLength=0`，`ai_response` 中不含被中止尝试的前缀，工具调用被解析（`Found 1 tool invocations`）并执行
+  - 多轮：第二轮请求第一次尝试输出 `PREFIX-LEAK-` 后断开，回滚日志 `targetLength=176 resultingLength=166`，只删除第二轮的中止片段，第一轮输出保留
+  - SSE：`delta` 中仍会看到已发出的中止片段（已发送的 delta 无法撤回），`done` payload 由 revision history 重建，只含完整工具调用
+  - 非流式与纯文本路径在同一构建上验证通过
