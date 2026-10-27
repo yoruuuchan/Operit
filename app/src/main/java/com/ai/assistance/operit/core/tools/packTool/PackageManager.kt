@@ -1824,8 +1824,18 @@ private constructor(private val context: Context, private val aiToolHandler: AIT
 
         synchronized(initLock) {
             availablePackages.values.forEach { toolPackage ->
+                // ToolPkg containers must opt into `enabled_by_default` regardless of their
+                // source type. Gating on `isBuiltIn` left externally installed ToolPkgs (which
+                // report `isBuiltIn == false`) permanently disabled even though their manifest
+                // asked to be enabled by default, so their registered prompt hooks were never
+                // collected into `getEnabledToolPkgContainerRuntimes()` and never dispatched.
+                // Built-in packages were auto-enabled and worked, which is exactly the
+                // built-in/external asymmetry reported in issue #1258. Legacy script packages
+                // keep the original built-in-only behaviour because they expose tools rather
+                // than prompt hooks and were never meant to self-enable on install.
+                val isToolPkgContainer = toolPkgContainers.containsKey(toolPackage.name)
                 if (
-                    toolPackage.isBuiltIn &&
+                    (toolPackage.isBuiltIn || isToolPkgContainer) &&
                     toolPackage.enabledByDefault &&
                     !toolPkgSubpackageByPackageName.containsKey(toolPackage.name) &&
                     !disabledPackages.contains(toolPackage.name)
@@ -3770,7 +3780,15 @@ private constructor(private val context: Context, private val aiToolHandler: AIT
 
     private fun addToDisabledIfDefaultEnabled(packageName: String) {
         val toolPackage = availablePackages[packageName]
-        if (toolPackage != null && toolPackage.isBuiltIn && toolPackage.enabledByDefault) {
+        // Mirror initializeDefaultPackages(): a default-enabled package that the user turns off
+        // must be remembered as disabled so it is not re-enabled on the next startup. This covers
+        // external ToolPkg containers too (isBuiltIn is false for them), otherwise disabling one
+        // would silently undo itself at restart.
+        val isToolPkgContainer = toolPkgContainers.containsKey(packageName)
+        if (toolPackage != null &&
+            (toolPackage.isBuiltIn || isToolPkgContainer) &&
+            toolPackage.enabledByDefault
+        ) {
             val disabledPackages = getDisabledPackages().toMutableList()
             if (!disabledPackages.contains(packageName)) {
                 disabledPackages.add(packageName)
