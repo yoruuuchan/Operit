@@ -404,6 +404,9 @@ class StandardTerminalCommandExecutor(private val context: Context) {
                         ),
                     error = errorMessage
                 )
+            } catch (e: CancellationException) {
+                // Cancellation is not a tool outcome: keep it as cancellation instead of a failed result.
+                throw e
             } catch (e: Exception) {
                 AppLogger.e(TAG, "执行隐藏终端命令时出错", e)
                 ToolResult(

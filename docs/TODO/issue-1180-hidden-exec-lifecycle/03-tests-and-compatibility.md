@@ -15,12 +15,15 @@ issue: https://github.com/AAswordman/Operit/issues/1180
 - cancellation 传播并清理 active shell
 - END marker 分片时等待完整 exit-code 行
 - disconnect 后拒绝新调用且不创建进程
+- disconnect 在执行中退役 executor：先销毁进程再关 writer，返回时 teardown 已完成；执行中的调用随之结束
 - timeout 后相同与不同 executorKey 可再次执行
 - QQbot、code_runner 与 linux_ssh 调用参数和结果字段保持兼容
 
 ## 自动化结果
 
-- `:terminal:testDebugUnitTest`：Java 21，13 个测试全部通过。
+- `:terminal:testDebugUnitTest`：Java 21，14 个测试全部通过。
+- 其中 `disconnectRetiresActiveExecutorsBeforeItReturns` 在上一版实现（teardown 异步）上失败，
+  报 `disconnect must wait for the teardown it started`；本次改动之后通过。
 - `:app:compileDebugKotlin`：Java 21，通过；验证 ToolPkg/Kotlin 入口与 terminal submodule 集成。
 - `:terminal:assembleDebug`：作为全量 assemble 依赖执行并通过。
 - `git diff --check`：父仓库与 terminal submodule 均通过。

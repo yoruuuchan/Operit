@@ -22,6 +22,9 @@ issue: https://github.com/AAswordman/Operit/issues/1180
   主动关闭结果 channel，即使后代仍持有 stdout，调用也会得到 `PROCESS_EXITED`。
 - active 调用超时、取消、reader 异常、marker 异常或进程退出时，shell 会先从 key map 原子移除，
   再终止命令进程组和 shell。销毁进程先于关闭 buffered writer，避免 close 再次阻塞 flush。
+  teardown 在 `NonCancellable` 中跑完：调用已经取消时也必须把进程和 writer 收干净，不能半途退出。
+- `disconnect()` 先退役所有 executor 再取消执行 scope，返回时进程已经终止。批量关闭走一个
+  独立的 cleanup scope，所以 `Terminal.destroy()` 之后不会残留 shell 或阻塞的 writer 线程。
 - 仅仅在 mutex 中排队的调用超时，不会关闭另一个 active owner。若 owner 关闭旧 shell，仍有预算的
   排队调用会重新解析同一 key、创建健康 shell 并继续执行。
 - 启动失败不会把半初始化 executor 发布到 map；相同或不同 key 的下一次调用均可重新创建。
