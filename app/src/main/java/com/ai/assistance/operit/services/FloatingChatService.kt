@@ -302,7 +302,14 @@ class FloatingChatService : Service(), FloatingWindowCallback {
                 service = this,
                 notificationId = NOTIFICATION_ID,
                 notification = notification,
-                types = ForegroundServiceCompat.buildTypes(dataSync = true)
+                // microphone 类型跟随浮窗语音会话的整个生命周期：Android 11 起进程没有
+                // microphone 前台服务时 AudioRecord 静默返回无声数据，多轮对话的第二轮
+                // 会因此听不到任何声音。带类型调用要求 RECORD_AUDIO 已授予，未授权时
+                // 系统会抛 SecurityException，所以类型按授权状态组装。
+                types = ForegroundServiceCompat.buildTypes(
+                    dataSync = true,
+                    microphone = hasRecordAudioPermission()
+                )
             )
             isServiceReady = true
 
@@ -330,6 +337,11 @@ class FloatingChatService : Service(), FloatingWindowCallback {
         } catch (e: Exception) {
             AppLogger.e(TAG, "Error acquiring WakeLock", e)
         }
+    }
+
+    private fun hasRecordAudioPermission(): Boolean {
+        return checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) ==
+            android.content.pm.PackageManager.PERMISSION_GRANTED
     }
 
     private fun releaseWakeLock() {
