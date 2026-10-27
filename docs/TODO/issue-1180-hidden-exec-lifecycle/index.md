@@ -40,7 +40,9 @@ base: https://github.com/AAswordman/Operit/tree/dev
 - 已同步最新 `upstream/dev`，确认 Issue 仍开放且无人分配或提交关联 PR
 - 已在 Issue 下留言认领
 - 已在最新 dev 基线上复现 executor 准备、创建 mutex 和阻塞 writer 三条永久等待路径
-- 已完成通用生命周期修复、13 项回归测试、调用方兼容审计和 API 文档更新
+- 已完成通用生命周期修复、14 项回归测试、调用方兼容审计和 API 文档更新
 - 已把 terminal 测试接入 Android JVM test 与 PR check 工作流
 - 已完成相关测试、应用 Kotlin 集成编译和构建边界核验
 - 已推送 fork 分支并创建父仓库 Draft PR 与 terminal submodule PR，已在 Issue 下同步链接
+- 已回应 2026-10-26 评审：rethrow cancellation（P3）、`disconnect()` 同步退役 executor 与回归测试（P2）
+- P1 仍等维护者先合并 terminal submodule PR #6；合并后把 `terminal` 指针改成 `master` 上的合并提交
