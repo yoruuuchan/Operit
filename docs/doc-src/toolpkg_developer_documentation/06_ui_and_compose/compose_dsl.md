@@ -132,6 +132,8 @@ setter 只接受新值，不支持 React 风格的 updater function；如果把�
 
 `addJavascriptInterface(name, object)` 要求 object 是非数组对象，并且至少包含一个函数方法；函数会注册为 Compose action，而不是直接把任意 JS 对象暴露给 Android WebView。`removeJavascriptInterface` 会移除当前 execution context/controller 下的映射。controller 和 WebView 绑定 route instance、execution context、controller key，route 销毁或 context 清理后旧 controller 不应继续使用。
 
+页面调用 `name.method(a, b, c)` 时，宿主按位置把三个实参交给插件方法，方法声明几个参数就收几个参数，与 `ComposeWebViewJavascriptInterfaceMethod` 的 `(...args: unknown[]) => unknown` 契约一致。参数全程走 JSON 编解码，中英文标点、换行、引号、HTML 片段和 JSON 字符串都按原样传递；需要传结构化数据时直接传对象，不必先 `JSON.stringify`，宿主也不会把对象字符串化。插件方法抛错时宿主把该错误回传给页面调用点，页面可以用 `try/catch` 或 Promise 拒绝处理；这次调用产生的 state 变更与渲染结果一并作废，不会在失败后回灌到插件界面。
+
 `createWebViewController(key)` 要求非空 key，创建绑定当前 route instance 与 execution context 的 controller。可调用 `loadUrl(url, headers?)`、`loadHtml(html, options?)`、`reload()`、`stopLoading()`、`goBack()`、`goForward()`、`clearHistory()`、`getState()`、`addJavascriptInterface(name, object)` 和 `removeJavascriptInterface(name)`；这些同步命令通过 native bridge 派发并通常返回 `void`。空 URL、空 interface name 或非对象 interface 会在 JS 层抛错；host 返回结构化失败时会抛出 bridge error，但缺失 native 方法/调用异常在当前 `invokeNative` 路径可能被转成 `undefined`，不能把每个同步调用都当成可靠的失败异常。`evaluateJavascript(script)` 通过 suspend callback 返回 Promise，native callback 报错时 reject。
 
 ## Modifier
